@@ -243,7 +243,7 @@ class CronJobController extends \yii\web\Controller{
             $userModel = \app\models\Users::find()
             ->where(['status' => '1'])
             ->andWhere(['<', 'users.updated_at', time()])
-            ->limit(50)
+            ->limit(20)
             ->asArray()
             ->all();
 
@@ -254,11 +254,10 @@ class CronJobController extends \yii\web\Controller{
 
             if ($userModel != null) {
                 $all_packets = \app\models\UsersServicesPackets::find()
-                    ->select('users_services_packets.*,services.service_alias as service_alias_name,users.status as users_status,users.balance as user_balance,users.bonus as user_bonus,users.tariff as user_tariff,users.id as user_t_id,users.updated_at as user_updated_at,users.paid_time_type as user_paid_time_type,users.paid_day as user_paid_day,users_inet.login as user_inet_login,users_inet.password as user_inet_password,service_packets.packet_price as user_packet_price,address_district.router_id as user_router_id,routers.nas as nas,routers.username as router_username,routers.password as router_password')
+                    ->select('users_services_packets.*,services.service_alias as service_alias_name,users.status as users_status,users.balance as user_balance,users.bonus as user_bonus,users.tariff as user_tariff,users.id as user_t_id,users.updated_at as user_updated_at,users.paid_time_type as user_paid_time_type,users.paid_day as user_paid_day,users_inet.login as user_inet_login,users_inet.password as user_inet_password,service_packets.packet_price as user_packet_price')
                     ->leftJoin('services', 'services.id=users_services_packets.service_id')
                     ->leftJoin('users', 'users.id=users_services_packets.user_id')
                     ->leftJoin('address_district', 'address_district.id=users.district_id')
-                    ->leftJoin('routers', 'routers.id=address_district.router_id')
                     ->leftJoin('users_inet', 'users_inet.u_s_p_i=users_services_packets.id')
                     ->leftJoin('users_tv', 'users_tv.u_s_p_i=users_services_packets.id')
                     ->leftJoin('users_wifi', 'users_wifi.u_s_p_i=users_services_packets.id')

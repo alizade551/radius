@@ -125,6 +125,7 @@ if ( isset( Yii::$app->request->cookies->get( Yii::$app->controller->id.'GridVie
     $gridViewVisibility["operator-view"] = "true@Operator";
     $gridViewVisibility["payment_method-view"] = "true@Payment method";
     $gridViewVisibility["item-view"] = "true@Item";
+    $gridViewVisibility["transfer-view"] = "true@Transfer";
     $gridViewVisibility["status-view"] = "true@Status";
     $gridViewVisibility["created_at-view"] = "true@Created at";
 
@@ -423,35 +424,28 @@ $content = "<div class='helper-container'>".$pageSizeContainer.$actionsContainer
                 }
             ],
 
-            // [
-            //     'class' => 'yii\grid\CheckboxColumn', 'options'=>['style'=>'width:1%'],
-            //     'headerOptions'=>['style'=>'width:20px;text-align:center'],
-            //     'contentOptions'=>['style'=>'width:20px;'],
-            // ],
-
-
-            // [
-            //   'class' => 'yii\grid\ActionColumn',
-            //   'options'=>['style'=>'width:80px;text-align:center;'],
-            //   'options'=>['style'=>'width:80px;text-align:center;'],
-            //   'header' => Yii::t("app","Transfer"),
-            //   'visible'=> ( $gridViewVisibility["transfer-view"] == "true" && User::canRoute(["/items/add-stock"]) ) ? true : false,
-            //   'headerOptions' => ['style' => 'text-align:center'],
-            //   'template' => '{transfer-amount}',
-            //     'buttons' => [
-            //         'transfer-amount' => function ($url, $model) {
-            //             if ( $model['balance_in'] >  0 ) {
-            //             $langUrl = (Yii::$app->language == "en") ? "" : "/".Yii::$app->language."/";
-            //                 return Html::a('<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="css-i6dzq1"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>',$url,[
-            //                     'data'=>['pjax'=>0],'class'=>'modal-d','style'=>'display:block;text-align:center','title'=>Yii::t('app','Amount transfer from {user}',['user'=>$model['user_name']])
-            //                 ]);
-            //             }else{
-            //                 return '<div  style="text-align:center;display:block"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="css-i6dzq1"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg></div>';
+            [
+              'class' => 'yii\grid\ActionColumn',
+              'options'=>['style'=>'width:80px;text-align:center;'],
+              'options'=>['style'=>'width:80px;text-align:center;'],
+              'header' => Yii::t("app","Transfer"),
+              'visible'=> ( str_contains( $gridViewVisibility["transfer-view"], 'true') == "true" && User::canRoute( ["/user-balance/transfer-amount"] ) ) ? true : false,
+              'headerOptions' => ['style' => 'text-align:center'],
+              'template' => '{transfer-amount}',
+                'buttons' => [
+                    'transfer-amount' => function ($url, $model) {
+                        if ( $model['balance_in'] >  0 ) {
+                        $langUrl = (Yii::$app->language == "en") ? "" : "/".Yii::$app->language."/";
+                            return Html::a('<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="css-i6dzq1"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>',$url,[
+                                'data'=>['pjax'=>0],'class'=>'modal-d','style'=>'display:block;text-align:center','title'=>Yii::t('app','Amount transfer from {user}',['user'=>$model['user_name']])
+                            ]);
+                        }else{
+                            return '<div  style="text-align:center;display:block"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="css-i6dzq1"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg></div>';
                         
-            //             }
-            //         }
-            //       ]
-            // ],
+                        }
+                    }
+                  ]
+            ],
 
             [
                 'class' => 'yii\grid\ActionColumn',

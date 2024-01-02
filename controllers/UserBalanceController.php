@@ -78,86 +78,108 @@ class UserBalanceController extends DefaultController
 
         $token = \webvimark\modules\UserManagement\models\User::find()->where(['id'=>Yii::$app->user->id])->asArray()->one()['auth_key'];
   
-        if ( $model->load(Yii::$app->request->post()) && $model->validate() ) {
-            $userModel = \app\models\Users::find()->where(['id'=>$userId])->one();
-            $transferedContract = Yii::$app->request->post('UserBalance')['contract_number'];
-            $receiptModel = \app\models\Receipt::find()->where(['id'=>$transferedRecipetId])->one();
-            $receiptCode = $receiptModel->code;
+        if ( $model->load( Yii::$app->request->post() ) && $model->validate() ) {
 
-             $receiptModel->delete();
-             $model->delete();
 
-              $client = new Client([
-                'transport' => 'yii\httpclient\CurlTransport'
-              ]);
-              $response = $client->createRequest()
-              ->addHeaders([
-                  'content-type' => 'application/json',
-                  'Authorization' => 'Bearer '.$token,
-              ])
-              ->setFormat(\yii\httpclient\Client::FORMAT_JSON)
-              ->setUrl('localhost/api/add-balance')
-              ->setMethod('POST')
-              ->setData( 
-                [
-                'contract_number'=> $transferedContract,
-                'balance_in'=>$userBalanceIn,
-                'transaction'=> $transferedTransaction." (transfer)",
-                'receipt'=>$receiptCode,
-                ] 
-              )
+
+            var_dump( Yii::$app->request->post('UserBalance') );
+            die;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            
+            // $userModel = \app\models\Users::find()->where(['id'=>$userId])->one();
+            // $transferedContract = Yii::$app->request->post('UserBalance')['contract_number'];
+            // $receiptModel = \app\models\Receipt::find()->where(['id'=>$transferedRecipetId])->one();
+            // $receiptCode = $receiptModel->code;
+
+            //  $receiptModel->delete();
+            //  $model->delete();
+
+            //   $client = new Client([
+            //     'transport' => 'yii\httpclient\CurlTransport'
+            //   ]);
+            //   $response = $client->createRequest()
+            //   ->addHeaders([
+            //       'content-type' => 'application/json',
+            //       'Authorization' => 'Bearer '.$token,
+            //   ])
+            //   ->setFormat(\yii\httpclient\Client::FORMAT_JSON)
+            //   ->setUrl('localhost/api/add-balance')
+            //   ->setMethod('POST')
+            //   ->setData( 
+            //     [
+            //     'contract_number'=> $transferedContract,
+            //     'balance_in'=>$userBalanceIn,
+            //     'transaction'=> $transferedTransaction." (transfer)",
+            //     'receipt'=>$receiptCode,
+            //     ] 
+            //   )
        
-              ->send();
+            //   ->send();
 
 
 
-            $balanceOutModel = \app\models\UserBalance::find()
-            ->where(['receipt_id'=>$transferedRecipetId])
-            ->andWhere(['balance_in'=>0])
-            ->all();
+            // $balanceOutModel = \app\models\UserBalance::find()
+            // ->where(['receipt_id'=>$transferedRecipetId])
+            // ->andWhere(['balance_in'=>0])
+            // ->all();
    
 
-            if ( $balanceOutModel  > 0  ) {
-                if ( $userBalance < $userTariff  ) {
-                    $userModel = \app\models\Users::find()->where(['id'=>$userId])->one();
-                    $userModel->status = 2;
-                    $userModel->save(false);
-                     foreach ( $balanceOutModel as $outBalanceKey => $outBalance ) {
-                            if ( $outBalance->userServicePacket->service->service_alias == "internet" ) {
+            // if ( $balanceOutModel  > 0  ) {
+            //     if ( $userBalance < $userTariff  ) {
+            //         $userModel = \app\models\Users::find()->where(['id'=>$userId])->one();
+            //         $userModel->status = 2;
+            //         $userModel->save(false);
+            //          foreach ( $balanceOutModel as $outBalanceKey => $outBalance ) {
+            //                 if ( $outBalance->userServicePacket->service->service_alias == "internet" ) {
                            
-                                \app\models\radius\Radgroupreply::block(  $outBalance->userServicePacket->usersInet->login );
-                                \app\components\COA::disconnect(  $outBalance->userServicePacket->usersInet->login );
+            //                     \app\models\radius\Radgroupreply::block(  $outBalance->userServicePacket->usersInet->login );
+            //                     \app\components\COA::disconnect(  $outBalance->userServicePacket->usersInet->login );
 
-                                $inetModel = \app\models\UsersInet::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
-                                $inetModel->status = 2;
-                                $inetModel->save(false);
+            //                     $inetModel = \app\models\UsersInet::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
+            //                     $inetModel->status = 2;
+            //                     $inetModel->save(false);
          
-                            }
-                            if ( $outBalance->userServicePacket->service->service_alias == "tv" ) {
-                                $tvModel = \app\models\UsersTv::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
-                                $tvModel->status = 2;
-                                $tvModel->save(false);
-                            }
+            //                 }
+            //                 if ( $outBalance->userServicePacket->service->service_alias == "tv" ) {
+            //                     $tvModel = \app\models\UsersTv::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
+            //                     $tvModel->status = 2;
+            //                     $tvModel->save(false);
+            //                 }
 
-                            if ( $outBalance->userServicePacket->service->service_alias == "wifi" ) {
-                                $wifiModel = \app\models\UsersTv::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
-                                $wifiModel->status = 2;
-                                $wifiModel->save(false);
-                            }
+            //                 if ( $outBalance->userServicePacket->service->service_alias == "wifi" ) {
+            //                     $wifiModel = \app\models\UsersTv::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
+            //                     $wifiModel->status = 2;
+            //                     $wifiModel->save(false);
+            //                 }
 
-                            $userServicePacketModel = \app\models\UsersServicesPackets::find()->where(['id'=>$outBalance->userServicePacket->id])->one();
-                            $userServicePacketModel->status = 2;
-                            $userServicePacketModel->save(false);
+            //                 $userServicePacketModel = \app\models\UsersServicesPackets::find()->where(['id'=>$outBalance->userServicePacket->id])->one();
+            //                 $userServicePacketModel->status = 2;
+            //                 $userServicePacketModel->save(false);
 
-                       $deleteOldBalance = \app\models\UserBalance::find()->where(['id'=>$outBalance['id']])->one();
-                       $deleteOldBalance->delete();
-                    }
+            //            $deleteOldBalance = \app\models\UserBalance::find()->where(['id'=>$outBalance['id']])->one();
+            //            $deleteOldBalance->delete();
+            //         }
                    
-                    $userModel->status = 2;
-                }
-                    $userModel->balance = \app\models\UserBalance::CalcUserTotalBalance( $userId );
-                    $userModel->save(false);
-            }
+            //         $userModel->status = 2;
+            //     }
+            //         $userModel->balance = \app\models\UserBalance::CalcUserTotalBalance( $userId );
+            //         $userModel->save(false);
+            // }
             
             
            return $this->redirect(['index']);

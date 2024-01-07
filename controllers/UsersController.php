@@ -2616,7 +2616,7 @@ class UsersController extends DefaultController
                                                     $created_at + 1,
                                                     0, 
                                                     $pay_for, 
-                                                    1, 
+                                                    0, 
                                                     $recipetId,
                                                     $service['packet_id']
                                                 );
@@ -2629,7 +2629,7 @@ class UsersController extends DefaultController
                                                     $created_at + 1,  
                                                     0, 
                                                     $pay_for, 
-                                                    1, 
+                                                    0, 
                                                     $recipetId,
                                                     $service['packet_id']
                                                 );
@@ -2642,7 +2642,7 @@ class UsersController extends DefaultController
                                                     $created_at + 1, 
                                                     0, 
                                                     $pay_for, 
-                                                    1, 
+                                                    0, 
                                                     $recipetId,
                                                     $service['packet_id']
                                                 );
@@ -2655,7 +2655,7 @@ class UsersController extends DefaultController
                                                     $created_at + 1,
                                                     0, 
                                                     $pay_for, 
-                                                    1, 
+                                                    0, 
                                                     $recipetId,
                                                     $service['packet_id']
                                                 );
@@ -2668,6 +2668,16 @@ class UsersController extends DefaultController
                                 $model_user->updated_at =  $caclNextUpdateAtForUser['updateAt'];
                                 $model_user->paid_day =  $caclNextUpdateAtForUser['paidDay'];
                                 $model_user->status = 1;
+
+                                if ( $siteConfig['paid_day_refresh'] == "1" && $model_user->paid_time_type == "1" ) {
+                                    $usersPaidDayHistory = new \app\models\UsersPaidDayHistory;
+                                    $usersPaidDayHistory->user_id = $model_user->id;
+                                    $usersPaidDayHistory->paid_day = $caclNextUpdateAtForUser['paidDay'];
+                                    $usersPaidDayHistory->created_at = $created_at;
+                                    $usersPaidDayHistory->save( false );
+                                }
+
+
                             }
         
                             if ( $model_user->bank_status == 0 ) {

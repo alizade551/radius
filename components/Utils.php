@@ -153,7 +153,7 @@ class Utils {
 
       if ( $currentMonth + $remnantMonth > 12 ) {
           $nextMonth = ( $currentMonth + $remnantMonth ) % 12;
-          $nextYear = $currentYear + ceil( $remnantMonth  / 12) + $yearCount;
+          $nextYear = $currentYear  + $yearCount + 1;
       } else {
           $nextYear = $currentYear + $yearCount;
           $nextMonth = $currentMonth + $remnantMonth;
@@ -820,11 +820,6 @@ class Utils {
   }
 
 }
-
-
-
-
-
 
 
  ?>

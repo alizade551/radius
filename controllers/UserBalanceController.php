@@ -63,125 +63,612 @@ class UserBalanceController extends DefaultController
         }
     }
 
-    public function actionTransferAmount( $id )
-    {
+    public function actionTransferAmount( $id ){   
+
+        $siteConfig = \app\models\SiteConfig::find()
+        ->asArray()
+        ->one();
+
+        // transferredCustomerModel
         $model = \app\models\UserBalance::find()->where(['id'=>$id])->one();
 
-        $userBalanceIn = $model->balance_in;
-        $userBalance = $model->user->balance;
-        $userTariff = $model->user->tariff;
-        $userId = $model->user_id;
+        $transferredCustomerFullname = $model->user->fullname;
+        $transferredCustomerBalanceIn = $model->balance_in;
+        $transferredCustomerBalance = $model->user->balance;
+        $transferredCustomerTariff = $model->user->tariff;
+        $transferredCustomerId = $model->user_id;
         $transferedRecipetId = $model->receipt_id;
-        $transferedTransaction = $model->transaction;
+        $transferedCustomerPaidDay = $model->user->paid_day;
+        $transferedCustomerPaidType = $model->user->paid_time_type;
+        $transferedCustomerUpdatedAt = $model->user->updated_at;
+        $transferedCustomerStatus = $model->user->status;
+
 
         $model->scenario = \app\models\UserBalance::SCENARIO_TRANSFER_AMOUNT;
 
-        $token = \webvimark\modules\UserManagement\models\User::find()->where(['id'=>Yii::$app->user->id])->asArray()->one()['auth_key'];
-  
+ 
         if ( $model->load( Yii::$app->request->post() ) && $model->validate() ) {
 
+            $toBetransferedCustomerModel = \app\models\Users::find()
+            ->where(['contract_number'=>Yii::$app->request->post('UserBalance')['contract_number']])
+            ->one();
+
+            if ( $toBetransferedCustomerModel == null ) {
+                return [
+                    'status'=>'error',
+                    'message'=>Yii::t("app","Contract number is invalid")
+                ];
+            }
+
+            $transactionBalanceIn = \app\models\UserBalance::find()
+            ->where(['receipt_id'=>$transferedRecipetId])
+            ->andWhere(['!=', 'balance_in', 0])
+            ->andWhere(['!=', 'status', '1'])
+            ->one();
+
+            $transactionBalanceIn->user_id = $toBetransferedCustomerModel->id;
+            $toBetransferedCustomerModel->save( false );
+
+            if ( $transactionBalanceIn->save( false ) ) {
+                $transactionsBalanceOut = \app\models\UserBalance::find()
+                    ->where(['receipt_id'=>$transferedRecipetId])
+                    ->andWhere(['!=', 'balance_out', 0])
+                    ->all();
+
+                    $monthCountLaterTimestamp = null;
+
+                    if ( $transactionsBalanceOut != null ) {
+
+                        // Start -  calculating services total for one month
+                        $transferedCustomerSevices = \app\models\UsersServicesPackets::find()
+                        ->where(['user_id'=>$transferredCustomerId])
+                        ->asArray()
+                        ->all();
+
+                        $transferedCustomerCreditModel = \app\models\ItemUsage::find()
+                        ->where(['user_id'=>$transferredCustomerId])
+                        ->andWhere(['status'=>6])
+                        ->andWhere(['credit'=>1])
+                        ->asArray()
+                        ->all();
+
+                        $oneMonthServiceTotal = 0;
+                        foreach ( $transferedCustomerSevices as $transferedCustomerKey => $transferedCustomerService ) {
+                            $oneMonthServiceTotal++;
+                        }
+
+                        $oneMonthCreditTotal = 0;
+                        foreach ( $transferedCustomerCreditModel as $transferedCustomerCreditKey => $transferedCustomerCredit ) {
+                            $oneMonthCreditTotal++;
+                        }
+
+                        $totalOneMonthCount = $oneMonthCreditTotal + $oneMonthServiceTotal;
+                        // END - calculating services total for one month
+
+                       $payForCounts = [
+                            'pay_for_credit' => 0,
+                            'pay_for_inet' => 0,
+                            'pay_for_tv' => 0,
+                            'pay_for_wifi' => 0,
+                            'pay_for_voip' => 0,
+                        ];
+
+                        $totalBalanceOut = 0;
+                        foreach ( $transactionsBalanceOut as $transactionBalanceOutKey => $transactionBalanceOut ) {
+                            $payForValue = $transactionBalanceOut['pay_for'];
+
+                            if ( $payForValue == 0 ) {
+                                $payForCounts['pay_for_inet']++;
+                            }elseif ( $payForValue == 1 ) {
+                                $payForCounts['pay_for_tv']++;
+                            }elseif ( $payForValue == 2 ) {
+                                $payForCounts['pay_for_wifi']++;
+                            }elseif ( $payForValue == 4 ) {
+                                $payForCounts['pay_for_voip']++;
+                            }elseif ( $payForValue == 3 ) {
+                                $payForCounts['pay_for_credit']++;
+                            }
+
+                            $totalBalanceOut += $transactionBalanceOut->balance_out;
+                            $transactionBalanceOut->status = "1";
+                            $transactionBalanceOut->transaction = "transfer-amount";
+                            $transactionBalanceOut->save( false );
+                        }
 
 
-            var_dump( Yii::$app->request->post('UserBalance') );
-            die;
+                        if ( $payForCounts['pay_for_credit'] > 0 ) {
+                            $creditHistoryModel = \app\models\UsersCredit::find()
+                            ->select('users_credit.*,item_usage.status as item_status')
+                            ->leftJoin('item_usage','item_usage.id=users_credit.item_usage_id')
+                            ->where(['user_id'=>$transferredCustomerId])
+                            ->andWhere(['item_usage.status'=>6])
+                            ->andWhere(['item_usage.credit'=>1])
+                            ->orderBy(['id'=>SORT_DESC])
+                            ->limit($payForCounts['pay_for_credit'])
+                            ->all();
 
+                            $c = 0;
+                            foreach ($creditHistoryModel as $creditItemHistoryKey => $creditItemHistory) {
+                                if ( $c >= $payForCounts['pay_for_credit'] ) {
+                                    $creditHistory = \app\models\UsersCredit::find()->where(['id'=>$creditItemHistory['id']])->one();
+                                    $creditHistory->delete();
+                                }
+                               $c++;
+                            }
+                        }
 
+                        $monthCount = ( $payForCounts['pay_for_credit'] + $payForCounts['pay_for_inet'] + $payForCounts['pay_for_tv'] + $payForCounts['pay_for_wifi'] + $payForCounts['pay_for_voip'] ) / $totalOneMonthCount;
 
+                       $paidDay = $transferedCustomerPaidDay;
+                       if ( $transferedCustomerPaidType == "1" && $siteConfig['paid_day_refresh'] == "1" ) {
+                           $userPaidDayHistory = \app\models\UsersPaidDayHistory::find()->where(['user_id'=>$updatetransferredCustomer->id])->orderBy(['id'=>SORT_DESC])->one();
+                           $paidDay = $userPaidDayHistory['paid_day'];
+                        }
 
+                        $monthCountLaterTimestamp = \app\components\Utils::calculateNextPaymentTimestamp( 
+                           -$monthCount,
+                            $transferedCustomerStatus, 
+                            $transferedCustomerPaidType,
+                            $transferedCustomerPaidDay,
+                            $transferedCustomerUpdatedAt
+                        );
+                    }
+                // update transferredCustomerBalance
+                $updatetransferredCustomer = \app\models\Users::find()
+                ->where(['id'=>$transferredCustomerId])
+                ->one();
 
+                $updatetransferredCustomer->balance = \app\models\UserBalance::CalcUserTotalBalance( $updatetransferredCustomer->id );
+                $updatetransferredCustomer->bonus = \app\models\UserBalance::CalcUserTotalBonus( $updatetransferredCustomer->id );
 
+                if ( $monthCountLaterTimestamp != null ) {
+                     $updatetransferredCustomer->updated_at = $monthCountLaterTimestamp;
+                     if ( $updatetransferredCustomer->updated_at < time() ) {
+                         $updatetransferredCustomer->status = 2;
+                         $updatetransferredCustomer->paid_day = $paidDay;
+                         
+                         // Start - service status to deactive
+                        $transferedCustomerSevices = \app\models\UsersServicesPackets::find()
+                        ->where(['user_id'=>$transferredCustomerId])
+                        ->all();
 
+                        foreach ( $transferedCustomerSevices as $transferedCustomerKey => $transferedCustomerService ) {
+                            $transferedCustomerService->status = 2;
+                            if ( $transferedCustomerService->save( false ) ) {
+                                if ( $transferedCustomerService->service->service_alias == "internet" ) {
+                                    $userInetModel = \app\models\UsersInet::find()
+                                    ->where([ 'u_s_p_i'=>$transferedCustomerService->id ])
+                                    ->one();
+                                    $userInetModel->status = 2;
+                                   if ( $userInetModel->save( false ) ) {
+                                       // API OR RADIUS query
+                                        \app\models\radius\Radgroupreply::block( $userInetModel['login'] );
+                                        \app\components\COA::disconnect( $userInetModel['login'] );
+                                   }
+                                }
 
+                                if ( $transferedCustomerService->service->service_alias == "tv" ) {
+                                    $tvModel = \app\models\UsersTv::find()
+                                    ->where([ 'u_s_p_i'=>$transferedCustomerService->id ])
+                                    ->one();
+                                    $tvModel->status = 2;
+                                    $tvModel->save(false);
+                                }
 
+                                if ( $transferedCustomerService->service->service_alias == "wifi" ) {
+                                    $wifiModel = \app\models\UsersWifi::find()
+                                    ->where([ 'u_s_p_i'=>$transferedCustomerService->id ])
+                                    ->one();
+                                    $wifiModel->status = 2;
+                                    $wifiModel->save(false);
+                                }
 
+                                if ( $transferedCustomerService->service->service_alias == "voip" ) {
+                                    $voIpModel = \app\models\UsersVoip::find()
+                                    ->where([ 'u_s_p_i'=>$transferedCustomerService->id ])
+                                    ->one();
+                                    $voIpModel->status = 2;
+                                    $voIpModel->save( false );
+                                }
+                            }
+                        }
+                        // End - service status to deactive
+                     }
+                }
 
+               if ( $updatetransferredCustomer->save(false) ) {
+                  $updateToBetransferedCustomerModel = \app\models\Users::find()->where(['id'=>$toBetransferedCustomerModel->id])->one();
+                  
+                  if ( $updateToBetransferedCustomerModel->save( false ) ) {
+                        // start
+                        if ( $updateToBetransferedCustomerModel->status == 2 || $updateToBetransferedCustomerModel->status == 3 ) {
+                            $daily_calc =  ( $updateToBetransferedCustomerModel->paid_time_type == "0" &&  $siteConfig['half_month'] == "0" ) ? true : false;
+                            $half_month =  ( $updateToBetransferedCustomerModel->paid_time_type == "0" &&  $siteConfig['half_month'] == "1" ) ? true : false;
+                        }else {
+                            $daily_calc =  false;
+                            $half_month =  false;
+                        }
 
+                        $tariffAndServiceArray = \app\models\UserBalance::CalcUserTariffDaily(
+                            $updateToBetransferedCustomerModel->id, 
+                            $daily_calc, 
+                            $half_month
+                        );
+                            
+                        $created_at =  time();
+                        $user_tariff = $tariffAndServiceArray['services_total_tariff'];
+                        $user_credit_tariff = $tariffAndServiceArray['credit_tariff'];
 
+                        if ( $updateToBetransferedCustomerModel->status == 2 || $updateToBetransferedCustomerModel->status == 3 ) {
+                            $receiptModel = \app\models\Receipt::find()->where(['id'=>$transactionBalanceIn->receipt_id])->asArray()->one();
 
+                            $calcUserBonusPayment = ( $transactionBalanceIn->balance_in > 0 ) ? \app\components\Utils::calcUserBonusPayment( $transactionBalanceIn->balance_in, $updateToBetransferedCustomerModel->id ) : 0;
+                            $transactionBalanceIn->bonus_in = $calcUserBonusPayment;
+                            if ( $transactionBalanceIn->save(false) ) {
+                                $updateToBetransferedCustomerModel->bonus = \app\models\UserBalance::CalcUserTotalBonus( $toBetransferedCustomerModel->id );
+                                $updateToBetransferedCustomerModel->save(false);
+                            }
 
+                            if ( $updateToBetransferedCustomerModel->paid_time_type == "0" ) {
+                                $caclNextUpdateAtForUser =  \app\models\Users::caclNextUpdateAtForUser( 
+                                    $updateToBetransferedCustomerModel->id,
+                                    $tariffAndServiceArray['services_total_tariff'] + $tariffAndServiceArray['credit_tariff'] , 
+                                    $transactionBalanceIn->balance_in,
+                                    ['untilToMonthTariff'=>$user_tariff,'credit_tariff'=>$tariffAndServiceArray['credit_tariff'],'total_tariff'=>$updateToBetransferedCustomerModel->tariff]
+                                );
+                            }
 
-            
-            // $userModel = \app\models\Users::find()->where(['id'=>$userId])->one();
-            // $transferedContract = Yii::$app->request->post('UserBalance')['contract_number'];
-            // $receiptModel = \app\models\Receipt::find()->where(['id'=>$transferedRecipetId])->one();
-            // $receiptCode = $receiptModel->code;
+                            if ( $updateToBetransferedCustomerModel->paid_time_type == "1" ) {
+                                $caclNextUpdateAtForUser =  \app\models\Users::caclNextUpdateAtForUser( 
+                                    $updateToBetransferedCustomerModel->id,
+                                    $tariffAndServiceArray['services_total_tariff'] + $tariffAndServiceArray['credit_tariff'] , 
+                                    $transactionBalanceIn->balance_in,
+                                );
+                            }
 
-            //  $receiptModel->delete();
-            //  $model->delete();
-
-            //   $client = new Client([
-            //     'transport' => 'yii\httpclient\CurlTransport'
-            //   ]);
-            //   $response = $client->createRequest()
-            //   ->addHeaders([
-            //       'content-type' => 'application/json',
-            //       'Authorization' => 'Bearer '.$token,
-            //   ])
-            //   ->setFormat(\yii\httpclient\Client::FORMAT_JSON)
-            //   ->setUrl('localhost/api/add-balance')
-            //   ->setMethod('POST')
-            //   ->setData( 
-            //     [
-            //     'contract_number'=> $transferedContract,
-            //     'balance_in'=>$userBalanceIn,
-            //     'transaction'=> $transferedTransaction." (transfer)",
-            //     'receipt'=>$receiptCode,
-            //     ] 
-            //   )
-       
-            //   ->send();
-
-
-
-            // $balanceOutModel = \app\models\UserBalance::find()
-            // ->where(['receipt_id'=>$transferedRecipetId])
-            // ->andWhere(['balance_in'=>0])
-            // ->all();
-   
-
-            // if ( $balanceOutModel  > 0  ) {
-            //     if ( $userBalance < $userTariff  ) {
-            //         $userModel = \app\models\Users::find()->where(['id'=>$userId])->one();
-            //         $userModel->status = 2;
-            //         $userModel->save(false);
-            //          foreach ( $balanceOutModel as $outBalanceKey => $outBalance ) {
-            //                 if ( $outBalance->userServicePacket->service->service_alias == "internet" ) {
-                           
-            //                     \app\models\radius\Radgroupreply::block(  $outBalance->userServicePacket->usersInet->login );
-            //                     \app\components\COA::disconnect(  $outBalance->userServicePacket->usersInet->login );
-
-            //                     $inetModel = \app\models\UsersInet::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
-            //                     $inetModel->status = 2;
-            //                     $inetModel->save(false);
-         
-            //                 }
-            //                 if ( $outBalance->userServicePacket->service->service_alias == "tv" ) {
-            //                     $tvModel = \app\models\UsersTv::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
-            //                     $tvModel->status = 2;
-            //                     $tvModel->save(false);
-            //                 }
-
-            //                 if ( $outBalance->userServicePacket->service->service_alias == "wifi" ) {
-            //                     $wifiModel = \app\models\UsersTv::find()->where(['u_s_p_i'=>$outBalance->userServicePacket->id])->one();
-            //                     $wifiModel->status = 2;
-            //                     $wifiModel->save(false);
-            //                 }
-
-            //                 $userServicePacketModel = \app\models\UsersServicesPackets::find()->where(['id'=>$outBalance->userServicePacket->id])->one();
-            //                 $userServicePacketModel->status = 2;
-            //                 $userServicePacketModel->save(false);
-
-            //            $deleteOldBalance = \app\models\UserBalance::find()->where(['id'=>$outBalance['id']])->one();
-            //            $deleteOldBalance->delete();
-            //         }
+                            if ( round( $updateToBetransferedCustomerModel->balance, 2 ) >= round( $user_tariff, 2 )  ) {
+                                if ( $updateToBetransferedCustomerModel['credit_status'] == 1 && round( $updateToBetransferedCustomerModel->balance, 2 ) >= round( $user_tariff, 2 ) ) {
+                                    $updateToBetransferedCustomerModel->credit_status = 0;
+                                    $updateToBetransferedCustomerModel->save(false);
+                                }  
+                              
+                                foreach ( $tariffAndServiceArray['service_tariff_array'] as $tariffAndServiceKey => $tariffAndService ) {
+                                   foreach ( $tariffAndService as $key => $service ) {
+                                         if ( $tariffAndServiceKey == "internet" ) {
+                                            $userServicePacketModel = \app\models\UsersServicesPackets::find()
+                                            ->where(['id'=>$service['u_s_p_i']])
+                                            ->one();
+                                             $userServicePacketModel->status = 1;
+                                             if ( $userServicePacketModel->save( false ) ) {
+                                                $inetModel = \app\models\UsersInet::find()
+                                                ->where([
+                                                    'user_id' => $service['user_id'], 
+                                                    'u_s_p_i' => $service['u_s_p_i']
+                                                ])
+                                                ->one();
+                                                $inetModel->status = 1;
+                                                if ( $inetModel->save( false ) ) {
                    
-            //         $userModel->status = 2;
-            //     }
-            //         $userModel->balance = \app\models\UserBalance::CalcUserTotalBalance( $userId );
-            //         $userModel->save(false);
-            // }
-            
-            
+                                                     if ( $updateToBetransferedCustomerModel->status == 2 ) {
+                                                        \app\models\radius\Radgroupreply::unblock(  $inetModel->login, $userServicePacketModel->packet->packet_name );
+                                                     }
+
+                                                     if ( $updateToBetransferedCustomerModel->status == 3 ) {
+                                                        $addUserToRadius = \app\models\radius\Radcheck::addUser(
+                                                            $inetModel->login,
+                                                           \app\constants\RadiusAttributes::CLEARTEXT_PASSWORD,
+                                                            \app\constants\RadiusAttributes::OPERATION_EQUALS,
+                                                            $inetModel->password
+                                                        );
+
+                                                        if ( $addUserToRadius == true ) {
+                                                            $radUserGroup = \app\models\radius\Radusergroup::createRadUserGroup(  
+                                                                $inetModel->login, 
+                                                                $userServicePacketModel->packet->packet_name 
+                                                            );
+                                                        }
+
+                                                        if ( $inetModel->static_ip != "" ) {
+                                                            $staticIpModel = \app\models\IpAdresses::find()->where(['id'=>$inetModel->static_ip])->asArray()->one();
+                                                             \app\models\radius\Radreply::addStaticIP(  
+                                                                $inetModel->login, 
+                                                                $staticIpModel['public_ip'] 
+                                                            );
+                                                        }
+
+                                                     }
+                                                    \app\components\COA::disconnect( $inetModel->login );
+
+                                                }
+                                             }
+                                         }
+                                         if ( $tariffAndServiceKey == "tv" ) {
+                                            $userServicePacketModel = \app\models\UsersServicesPackets::find()
+                                            ->where(['id'=> $service['u_s_p_i']])
+                                            ->one();
+                                            $userServicePacketModel->status = 1;
+                                            if ( $userServicePacketModel->save( false ) ) {
+                                                \app\models\UsersTv::turnOnTvAccess(
+                                                    $service['user_id'], 
+                                                    $service['u_s_p_i']
+                                                );
+                                            }
+                                         }
+
+                                         if ( $tariffAndServiceKey == "wifi" ) {
+                                            $userServicePacketModel = \app\models\UsersServicesPackets::find()
+                                            ->where(['id'=>$service['u_s_p_i']])
+                                            ->one();
+                                            $userServicePacketModel->status = 1;
+                                            if ( $userServicePacketModel->save( false ) ) {
+                                                \app\models\UsersWifi::turnOnWifiAccess(
+                                                    $service['user_id'], 
+                                                    $service['u_s_p_i']
+                                                );
+                                            }
+                                         }
+
+                                         if ( $tariffAndServiceKey == "voip" ) {
+                                            $userServicePacketModel = \app\models\UsersServicesPackets::find()
+                                            ->where(['id'=>$service['u_s_p_i']])
+                                            ->one();
+                                            $userServicePacketModel->status = 1;
+                                            if ( $userServicePacketModel->save( false ) ) {
+                                                $voIpModel = \app\models\UsersVoip::find()
+                                                ->where(['user_id'=>$service['user_id']])
+                                                ->andWhere(['u_s_p_i'=>$service['u_s_p_i']])
+                                                ->one();
+                                                $voIpModel->status = 1;
+                                                $voIpModel->save( false );
+                                            }
+                                         }
+                                   }
+                                }
+                      
+                                if ( $caclNextUpdateAtForUser['monthCount'] > 0 ) {
+                                    for ( $i=0; $i < $caclNextUpdateAtForUser['monthCount']; $i++ ) { 
+                                        if (  $i == 0 && $updateToBetransferedCustomerModel->paid_time_type == 0  ) {
+                                            $tariffAndServiceArray = \app\models\UserBalance::CalcUserTariffDaily(
+                                                $updateToBetransferedCustomerModel->id, 
+                                                $daily_calc, 
+                                                $half_month
+                                            );
+                                        }else{
+                                            $daily_calc = false; 
+                                            $half_month =  false;
+
+                                            $tariffAndServiceArray = \app\models\UserBalance::CalcUserTariffDaily(
+                                                $updateToBetransferedCustomerModel->id, 
+                                                $daily_calc, 
+                                                $half_month
+                                            );
+                                        }
+
+                                        foreach ( $tariffAndServiceArray['service_tariff_array'] as $tariffAndServiceKey => $tariffAndService ) {
+                                           foreach ( $tariffAndService as $key => $service ) {
+                                                 if ( $tariffAndServiceKey == "internet" ) {
+                                                    $pay_for = 0;
+                                                    \app\models\UserBalance::BalanceOut(
+                                                        $service['user_id'], 
+                                                        $service['packet_price'],
+                                                        $created_at + 1, 
+                                                        0, 
+                                                        $pay_for, 
+                                                        $transactionBalanceIn->payment_method, 
+                                                        $receiptModel->id,
+                                                        $service['packet_id']
+                                                    );
+                                                 }
+                                                 if ( $tariffAndServiceKey == "tv" ) {
+                                                    $pay_for = 1;
+                                                    \app\models\UserBalance::BalanceOut(
+                                                        $service['user_id'], 
+                                                        $service['packet_price'], 
+                                                        $created_at + 1,
+                                                        0, 
+                                                        $pay_for, 
+                                                        $transactionBalanceIn->payment_method, 
+                                                        $receiptModel->id,
+                                                        $service['packet_id']
+                                                    );
+                                                 }
+
+                                                 if ( $tariffAndServiceKey == "wifi" ) {
+                                                    $pay_for = 2;
+                                                    \app\models\UserBalance::BalanceOut(
+                                                        $service['user_id'], 
+                                                        $service['packet_price'],
+                                                        $created_at + 1,  
+                                                        0, 
+                                                        $pay_for, 
+                                                        $transactionBalanceIn->payment_method, 
+                                                        $receiptModel->id,
+                                                        $service['packet_id']
+                                                    );
+                                                 }
+
+                                                 if ( $tariffAndServiceKey == "voip" ) {
+                                                    $pay_for = 4;
+                                                    \app\models\UserBalance::BalanceOut(
+                                                        $service['user_id'], 
+                                                        $service['packet_price'],
+                                                        $created_at + 1,  
+                                                        0, 
+                                                        $pay_for, 
+                                                        $transactionBalanceIn->payment_method, 
+                                                        $receiptModel->id,
+                                                        $service['packet_id']
+                                                    );
+                                                 }
+                                           }
+                                        }
+
+                                        $updateToBetransferedCustomerModel->status = 1;
+                                        $updateToBetransferedCustomerModel->updated_at =  $caclNextUpdateAtForUser['updateAt'];
+                                        $updateToBetransferedCustomerModel->paid_day =  $caclNextUpdateAtForUser['paidDay'];
+
+                                        if ( $siteConfig['paid_day_refresh'] == "1" && $updateToBetransferedCustomerModel->paid_time_type == "1" ) {
+                                            $usersPaidDayHistory = new \app\models\UsersPaidDayHistory;
+                                            $usersPaidDayHistory->user_id = $updateToBetransferedCustomerModel->id;
+                                            $usersPaidDayHistory->paid_day = $caclNextUpdateAtForUser['paidDay'];
+                                            $usersPaidDayHistory->created_at = $created_at;
+                                            $usersPaidDayHistory->save( false );
+                                        }
+
+                                        \app\models\UsersGifts::checkAndAddGiftHistory( $updateToBetransferedCustomerModel->id );
+                                        \app\models\UsersCredit::CheckAndAddCreditHistory( $updateToBetransferedCustomerModel, 1, $receiptModel['code'] );
+                                    }
+                                }
+
+                                $updateToBetransferedCustomerModel->balance = \app\models\UserBalance::CalcUserTotalBalance( $updateToBetransferedCustomerModel->id  );
+                                $updateToBetransferedCustomerModel->bonus = \app\models\UserBalance::CalcUserTotalBonus( $updateToBetransferedCustomerModel->id  );
+                                $updateToBetransferedCustomerModel->last_payment = time();
+                                if ( $updateToBetransferedCustomerModel->save(false) ) {
+                                    $logMessage =  $transactionBalanceIn->balance_in . " AZN  has been transferred from ".$transferredCustomerFullname."'s balance. Services will activated until ".date("d-m-Y H:i:s",$caclNextUpdateAtForUser['updateAt']);
+                                    Logs::writeLog(
+                                        Yii::$app->user->username, 
+                                        intval( $updateToBetransferedCustomerModel->id ), 
+                                        $logMessage, 
+                                        $updateToBetransferedCustomerModel->last_payment
+                                    );
+
+                                   ###### sending  experied_service sms template ######
+                                  if ( $siteConfig['expired_service'] != "0" ) {
+                                    \app\components\Utils::sendExperiedDate( 
+                                        $updateToBetransferedCustomerModel->id, 
+                                        $updateToBetransferedCustomerModel->contract_number, 
+                                        $updateToBetransferedCustomerModel->phone, 
+                                        $updateToBetransferedCustomerModel->message_lang, 
+                                        $updateToBetransferedCustomerModel->updated_at 
+                                    );
+                                  }
+                                }
+                            } else {
+                                $updateToBetransferedCustomerModel->balance = \app\models\UserBalance::CalcUserTotalBalance( $updateToBetransferedCustomerModel->id );
+                                $updateToBetransferedCustomerModel->bonus = \app\models\UserBalance::CalcUserTotalBonus( $updateToBetransferedCustomerModel->id  );
+                                if ( $updateToBetransferedCustomerModel->save(false) ) {
+                                    $logMessage =  $transactionBalanceIn->balance_in . " AZN  has been transferred from ".$transferredCustomerFullname."'s balance.";
+
+                                    Logs::writeLog(
+                                        Yii::$app->user->username, 
+                                        intval( $updateToBetransferedCustomerModel->id ), 
+                                        $logMessage, 
+                                        time()
+                                    );
+                                }
+                            }
+                        }else{
+                            $caclNextUpdateAtForUser = \app\models\Users::caclNextUpdateAtForUser( 
+                                $updateToBetransferedCustomerModel->id,
+                                $tariffAndServiceArray['services_total_tariff'] + $tariffAndServiceArray['credit_tariff'] , 
+                                $transactionBalanceIn->balance_in
+                            );
+
+                            $calcUserBonusPayment = ( $transactionBalanceIn->balance_in > 0 ) ? \app\components\Utils::calcUserBonusPayment( $transactionBalanceIn->balance_in, $updateToBetransferedCustomerModel->id ) : 0;
+                            $transactionBalanceIn->bonus_in = $calcUserBonusPayment;
+                            $transactionBalanceIn->save(false);
+
+                            if ( $caclNextUpdateAtForUser['monthCount'] > 0 ) {
+                                for ( $i=0; $i < $caclNextUpdateAtForUser['monthCount']; $i++ ) { 
+                                    \app\models\UsersGifts::checkAndAddGiftHistory( $updateToBetransferedCustomerModel->id );
+                                    $receiptModel = \app\models\Receipt::find()->where(['id'=>$transactionBalanceIn->receipt_id])->asArray()->one();
+
+                                    \app\models\UsersCredit::CheckAndAddCreditHistory( $updateToBetransferedCustomerModel->id, 1, $receiptModel['code'] );
+
+                                        foreach ( $tariffAndServiceArray['service_tariff_array'] as $tariffAndServiceKey => $tariffAndService ) {
+                                           foreach ( $tariffAndService as $key => $service ) {
+                                                 if ( $tariffAndServiceKey == "internet" ) {
+                                                    $pay_for = 0;
+                                                    \app\models\UserBalance::BalanceOut(
+                                                        $service['user_id'], 
+                                                        $service['packet_price'], 
+                                                        $created_at + 1, 
+                                                        0, 
+                                                        $pay_for, 
+                                                        $transactionBalanceIn->payment_method, 
+                                                        $receiptModel['id'],
+                                                        $service['packet_id']
+                                                    );
+                                                 }
+                                                 if ( $tariffAndServiceKey == "tv" ) {
+                                                    $pay_for = 1;
+                                                    \app\models\UserBalance::BalanceOut(
+                                                        $service['user_id'], 
+                                                        $service['packet_price'],
+                                                        $created_at + 1, 
+                                                        0, 
+                                                        $pay_for, 
+                                                        $transactionBalanceIn->payment_method, 
+                                                        $receiptModel['id'],
+                                                        $service['packet_id']
+                                                    );
+                                                 }
+
+                                                 if ( $tariffAndServiceKey == "wifi" ) {
+                                                    $pay_for = 2;
+                                                    \app\models\UserBalance::BalanceOut(
+                                                        $service['user_id'], 
+                                                        $service['packet_price'],
+                                                        $created_at + 1, 
+                                                        0, 
+                                                        $pay_for, 
+                                                        $transactionBalanceIn->payment_method,
+                                                        $receiptModel['id'],
+                                                        $service['packet_id']
+                                                    );
+                                                 }
+
+                                                 if ( $tariffAndServiceKey == "voip" ) {
+                                       
+                                                    $pay_for = 4;
+                                                    \app\models\UserBalance::BalanceOut(
+                                                        $service['user_id'], 
+                                                        $service['packet_price'],
+                                                        $created_at + 1,  
+                                                        0, 
+                                                        $pay_for, 
+                                                        $transactionBalanceIn->payment_method,
+                                                        $receiptModel['id'],
+                                                        $service['packet_id']
+                                                    );
+                                                 }
+                                           }
+                                        }
+                                }
+                        
+                                $updateToBetransferedCustomerModel->updated_at = $caclNextUpdateAtForUser['updateAt'];
+                                $logMessage = $transactionBalanceIn->balance_in . " AZN  has been transferred from ".$transferredCustomerFullname."'s balance. on ACTIVE status. Services will activated again until ".date("d-m-Y",$caclNextUpdateAtForUser['updateAt']);
+
+                               ###### sending  experied_service sms template ######
+                              if ( $siteConfig['expired_service'] != "0" ) {
+                                    \app\components\Utils::sendExperiedDate( 
+                                        $updateToBetransferedCustomerModel->id, 
+                                        $updateToBetransferedCustomerModel->contract_number, 
+                                        $updateToBetransferedCustomerModel->phone, 
+                                        $updateToBetransferedCustomerModel->message_lang, 
+                                        $updateToBetransferedCustomerModel->updated_at 
+                                    );
+                                }
+                            }else{
+                                $logMessage = $transactionBalanceIn->balance_in . " " .$siteConfig['currency']."  transfer to " . $updateToBetransferedCustomerModel->fullname . "'s balane on ACTIVE status";
+                            }
+
+                            $updateToBetransferedCustomerModel->balance = \app\models\UserBalance::CalcUserTotalBalance( $updateToBetransferedCustomerModel->id );
+                            $updateToBetransferedCustomerModel->bonus = \app\models\UserBalance::CalcUserTotalBonus( $updateToBetransferedCustomerModel->id );
+                            if ( $updateToBetransferedCustomerModel->save(false) ) {
+                                
+                                Logs::writeLog(
+                                    Yii::$app->user->username,
+                                    intval( $updateToBetransferedCustomerModel->id ),
+                                    $logMessage,
+                                    time()
+                                );
+                            }
+                        }
+                        // end
+                  };
+               }
+            }
            return $this->redirect(['index']);
         }
 

@@ -829,6 +829,14 @@ class ApiController extends \app\controllers\ActiveController{
                                 $model_user->updated_at =  $caclNextUpdateAtForUser['updateAt'];
                                 $model_user->paid_day =  $caclNextUpdateAtForUser['paidDay'];
 
+                                if ( $siteConfig['paid_day_refresh'] == "1" && $model_user->paid_time_type == "1" ) {
+                                    $usersPaidDayHistory = new \app\models\UsersPaidDayHistory;
+                                    $usersPaidDayHistory->user_id = $model_user->id;
+                                    $usersPaidDayHistory->paid_day = $caclNextUpdateAtForUser['paidDay'];
+                                    $usersPaidDayHistory->created_at = $created_at;
+                                    $usersPaidDayHistory->save( false );
+                                }
+
                                 \app\models\UsersGifts::checkAndAddGiftHistory( $model->user_id );
                                 \app\models\UsersCredit::CheckAndAddCreditHistory( $model->user_id, 1, $post['receipt'] );
                             }

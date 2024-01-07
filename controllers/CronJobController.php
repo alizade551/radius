@@ -163,6 +163,7 @@ class CronJobController extends \yii\web\Controller{
             $archive_internet_packets = [];
             $archive_tv_packets = [];
             $archive_wifi_packets = [];
+            $archive_voip_packets = [];
             $static_ips = [];
             foreach ($all_packets as $key => $packet) {
                 if ($packet['users_status'] == "2") {
@@ -186,6 +187,9 @@ class CronJobController extends \yii\web\Controller{
                         $archive_wifi_packets[] = $packet['id'];
                     }
 
+                    if ($packet['service_alias_name'] == "voip") {
+                        $archive_voip_packets[] = $packet['id'];
+                    }
                 }
             }
 
@@ -219,6 +223,11 @@ class CronJobController extends \yii\web\Controller{
             if (count(array_unique($archive_wifi_packets)) > 0) {
                 \app\models\UsersWifi::updateAll(['status' => 3], ['u_s_p_i' => $archive_wifi_packets]);
             }
+
+            if (count(array_unique($archive_voip_packets)) > 0) {
+                \app\models\UsersVoip::updateAll(['status' => 3], ['u_s_p_i' => $archive_voip_packets]);
+            }
+
 
             // End clock time in seconds
             $end_time = microtime(true);

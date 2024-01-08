@@ -466,6 +466,9 @@ $service_group = \app\models\UsersServicesPackets::find()->where(['user_id'=>$mo
                                 <td><?=Yii::t('app','Paid type') ?></td>
                                 <td>
                                      <?=\app\models\RequestOrder::getPaidDayType()[$model->paid_time_type ] ?> 
+                                     <?php if ( $model->paid_time_type == "1" ): ?> | 
+                                         <a title="<?=Yii::t("app","Paid day changing history for {customer}",['customer'=>$model->fullname]) ?>" class="modal-d" href="/users/paid-day-history?id=<?=$model->id ?>"><?=Yii::t("app","Paid day history") ?></a>
+                                     <?php endif ?>
                                 </td>
                             </tr>
 

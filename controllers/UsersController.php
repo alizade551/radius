@@ -3001,6 +3001,15 @@ class UsersController extends DefaultController
         }
     }
 
+
+    public function actionPaidDayHistory ($id){
+        $model = \app\models\UsersPaidDayHistory::find()->where(['id'=>$id])->one();
+
+        return $this->renderAjax('paid-day-history', [
+            'model' => $model
+        ]);
+    }
+
     protected function findModel($id){
         if (($model = Users::findOne($id)) !== null) {
             return $model;

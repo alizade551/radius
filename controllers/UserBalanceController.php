@@ -201,12 +201,12 @@ class UserBalanceController extends DefaultController
 
                        $paidDay = $transferedCustomerPaidDay;
                        if ( $transferedCustomerPaidType == "1" && $siteConfig['paid_day_refresh'] == "1" ) {
-                           $userPaidDayHistory = \app\models\UsersPaidDayHistory::find()->where(['user_id'=>$updatetransferredCustomer->id])
+                           $userPaidDayHistory = \app\models\UsersPaidDayHistory::find()->where(['user_id'=>$transferredCustomerId])
                            ->orderBy(['id'=>SORT_DESC])
                            ->one();
                            $userPaidDayHistory->delete();
 
-                           $userPaidDayHistory = \app\models\UsersPaidDayHistory::find()->where(['user_id'=>$updatetransferredCustomer->id])
+                           $userPaidDayHistory = \app\models\UsersPaidDayHistory::find()->where(['user_id'=>$transferredCustomerId])
                            ->orderBy(['id'=>SORT_DESC])
                            ->one();
 

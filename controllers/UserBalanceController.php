@@ -201,8 +201,19 @@ class UserBalanceController extends DefaultController
 
                        $paidDay = $transferedCustomerPaidDay;
                        if ( $transferedCustomerPaidType == "1" && $siteConfig['paid_day_refresh'] == "1" ) {
-                           $userPaidDayHistory = \app\models\UsersPaidDayHistory::find()->where(['user_id'=>$updatetransferredCustomer->id])->orderBy(['id'=>SORT_DESC])->one();
-                           $paidDay = $userPaidDayHistory['paid_day'];
+                           $userPaidDayHistory = \app\models\UsersPaidDayHistory::find()->where(['user_id'=>$updatetransferredCustomer->id])
+                           ->orderBy(['id'=>SORT_DESC])
+                           ->one();
+                           $userPaidDayHistory->delete();
+
+                           $userPaidDayHistory = \app\models\UsersPaidDayHistory::find()->where(['user_id'=>$updatetransferredCustomer->id])
+                           ->orderBy(['id'=>SORT_DESC])
+                           ->one();
+
+                           if (  $userPaidDayHistory != null ) {
+                               $paidDay = $userPaidDayHistory['paid_day'];
+                           }
+
                         }
 
                         $monthCountLaterTimestamp = \app\components\Utils::calculateNextPaymentTimestamp( 

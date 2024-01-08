@@ -749,8 +749,9 @@ return array (
   'Expired service' => 'Истекшие услуги',
   'Cancelation' => 'Отмена',
   'Confirmation' => 'Подтверждение',
+  'Paid day changing history for {customer}' => '{customer} хочет получить доступ к информации',
+  'Day' => 'День',
   'test' => ''
-
 
 
 )

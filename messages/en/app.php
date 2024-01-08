@@ -772,8 +772,12 @@ return array (
   'Log in' => '',
   'Keep me logged in' => '',
   'Control Panel' => '',
+  'Paid day changing history for {customer}' => '',
+  'Day' => '',
+  'test' => '',
+  'test' => '',
   'test' => '',
 
-  
 )
+
 ?>

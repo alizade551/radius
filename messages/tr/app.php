@@ -772,8 +772,9 @@ return array (
   'Log in' => 'Giriş yap',
   'Keep me logged in' => 'Beni oturum açık tut',
   'Control Panel' => 'Kontrol Paneli',
+  'Paid day changing history for {customer}' => '{customer} için gün değiştirme geçmişi',
+  'Day' => 'Gün',
   'test' => 'test',
-
   
 )
 ?>

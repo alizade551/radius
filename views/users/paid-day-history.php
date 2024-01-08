@@ -1,12 +1,11 @@
 <div class="check-connection">
 	<?php if(  $model != null ): ?>
-	   <h3><?=Yii::t("app","Paid day history") ?></h3>
 	    <table class="table table-striped">
 	        <thead> 
 	            <tr> 
 	                <th>#</th> 
-	                <th><?=Yii::t('app','#') ?></th> 
 	                <th><?=Yii::t('app','Day') ?></th> 
+	                <th><?=Yii::t('app','Paid at') ?></th> 
 	            </tr> 
 	        </thead> 
 	        <tbody>
@@ -16,6 +15,7 @@
 	            <tr>  
 	                <td><?=$c; ?></td> 
 	                <td><?=$day['paid_day'] ?></td>
+	                <td><?=date("d-m-Y H:i",$day['created_at']) ?></td>
 	               
 	            </tr> 
 	          <?php endforeach ?>
